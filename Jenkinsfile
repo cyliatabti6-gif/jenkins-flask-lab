@@ -1,39 +1,64 @@
-
 pipeline {
     agent any
+
+    environment {
+        IMAGE_NAME = 'jenkins-flask-lab'
+        CONTAINER_NAME = 'jenkins-flask-app'
+        APP_PORT = '8081'
+    }
 
     stages {
         stage('Checkout') {
             steps {
                 checkout scm
+                echo 'Source code checked out successfully'
             }
         }
 
         stage('Build') {
             steps {
-                sh 'docker build -t flask-ci-cd-app .'
+                sh 'docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} .'
             }
         }
 
         stage('Test') {
             steps {
-                sh 'docker run --rm flask-ci-cd-app python -m pytest -v'
+                sh 'docker run --rm ${IMAGE_NAME}:${BUILD_NUMBER} python -m pytest -v'
             }
         }
 
         stage('Deploy') {
             steps {
                 sh '''
-                    docker rm -f flask-ci-cd-container || true
-                    docker run -d --name flask-ci-cd-container -p 5000:5000 flask-ci-cd-app
+                    docker rm -f ${CONTAINER_NAME} || true
+
+                    docker run -d \
+                      --name ${CONTAINER_NAME} \
+                      -p ${APP_PORT}:8000 \
+                      -e APP_VERSION=${BUILD_NUMBER} \
+                      ${IMAGE_NAME}:${BUILD_NUMBER}
                 '''
             }
         }
 
         stage('Verify') {
             steps {
-                sh 'docker ps --filter name=flask-ci-cd-container'
+                sh '''
+                    curl --fail --retry 10 --retry-delay 2 \
+                      http://localhost:${APP_PORT}/health
+
+                    curl --fail http://localhost:${APP_PORT}/
+                '''
             }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed!'
         }
     }
 }

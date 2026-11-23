@@ -1,3 +1,4 @@
+
 pipeline {
     agent any
 
@@ -5,9 +6,11 @@ pipeline {
         IMAGE_NAME = 'jenkins-flask-lab'
         CONTAINER_NAME = 'jenkins-flask-app'
         APP_PORT = '8081'
+        DOCKER_NETWORK = 'jenkins-lab-network'
     }
 
     stages {
+
         stage('Checkout') {
             steps {
                 checkout scm
@@ -34,6 +37,7 @@ pipeline {
 
                     docker run -d \
                       --name ${CONTAINER_NAME} \
+                      --network ${DOCKER_NETWORK} \
                       -p ${APP_PORT}:8000 \
                       -e APP_VERSION=${BUILD_NUMBER} \
                       ${IMAGE_NAME}:${BUILD_NUMBER}
@@ -45,9 +49,10 @@ pipeline {
             steps {
                 sh '''
                     curl --fail --retry 10 --retry-delay 2 \
-                      http://localhost:${APP_PORT}/health
+                      http://${CONTAINER_NAME}:8000/health
 
-                    curl --fail http://localhost:${APP_PORT}/
+                    curl --fail \
+                      http://${CONTAINER_NAME}:8000/
                 '''
             }
         }
@@ -57,6 +62,7 @@ pipeline {
         success {
             echo 'Pipeline completed successfully!'
         }
+
         failure {
             echo 'Pipeline failed!'
         }
